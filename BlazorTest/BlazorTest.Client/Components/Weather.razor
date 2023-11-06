@@ -1,0 +1,86 @@
+﻿@using BlazorTest.Client.Models
+@using BlazorTest.Client.Services
+@implements IDisposable
+@inject IBackendClient BackendClient
+@inject PersistentComponentState ComponentState
+@attribute [StreamRendering()]
+@attribute [RenderModeInteractiveAuto()]
+
+<h1>Weather</h1>
+<p>@(BackendClient.IsClientSide() ? "webassembly component" : "SSR component")</p>
+
+<p>This component demonstrates showing data.</p>
+
+@if (forecasts == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+        <tr>
+            <th>Date</th>
+            <th>Temp. (C)</th>
+            <th>Temp. (F)</th>
+            <th>Summary</th>
+        </tr>
+        </thead>
+        <tbody>
+        @foreach (var forecast in forecasts)
+        {
+            <tr>
+                <td>@forecast.Date.ToShortDateString()</td>
+                <td>@forecast.TemperatureC</td>
+                <td>@forecast.TemperatureF</td>
+                <td>@forecast.Summary</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+
+    private WeatherForecast[]? forecasts;
+    private PersistingComponentStateSubscription persistingSubscription;
+
+    protected override async Task OnInitializedAsync()
+    {
+        persistingSubscription = ComponentState.RegisterOnPersisting(PersistData);
+
+        if (ComponentState.TryTakeFromJson(nameof(LoadWeather), out WeatherForecast[] weather))
+        {
+            forecasts = weather;
+        }
+        else
+        {
+            await LoadWeather();
+        }
+    }
+
+    private async Task LoadWeather()
+    {
+        await Task.Delay(3000);
+        var startDate = DateOnly.FromDateTime(DateTime.Now);
+        var summaries = new[] { "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching" };
+        forecasts = Enumerable.Range(1, 5).Select(index => new WeatherForecast()
+        {
+            Date = startDate.AddDays(index),
+            TemperatureC = Random.Shared.Next(-20, 55),
+            Summary = summaries[Random.Shared.Next(summaries.Length)]
+        }).ToArray();
+    }
+
+    private Task PersistData()
+    {
+        ComponentState.PersistAsJson(nameof(LoadWeather), forecasts);
+        return Task.CompletedTask;
+    }
+
+    public void Dispose()
+    {
+        persistingSubscription.Dispose();
+    }
+
+}
